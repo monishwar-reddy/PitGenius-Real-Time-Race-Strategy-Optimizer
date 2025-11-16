@@ -7,6 +7,7 @@ from pathlib import Path
 
 from data_processor import RaceDataProcessor
 from strategy_engine import StrategyEngine
+from data_downloader import download_race_data
 
 app = FastAPI(title="PitGenius API", version="1.0.0")
 
@@ -38,9 +39,16 @@ class PitDecisionRequest(BaseModel):
 async def startup_event():
     """Load race data on startup"""
     global processor
-    race_folder = Path("../COTA/Race 1")
+    
+    # STEP 1: Download data from Google Drive
+    download_race_data()
+    
+    # STEP 2: Load data from extracted folder
+    race_folder = Path("race_data/Race 1")
     if not race_folder.exists():
-        race_folder = Path("COTA/Race 1")
+        race_folder = Path("../COTA/Race 1")
+        if not race_folder.exists():
+            race_folder = Path("COTA/Race 1")
     
     processor = RaceDataProcessor(str(race_folder))
     processor.load_all_data()
