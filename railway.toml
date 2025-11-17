@@ -1,5 +1,8 @@
-[build]
-builder = "NIXPACKS"
+[phases.setup]
+nixPkgs = ["python310"]
 
-[deploy]
-startCommand = "python api.py"
+[phases.install]
+cmds = ["pip install -r requirements.txt"]
+
+[start]
+cmd = "python api.py"
