@@ -9,8 +9,8 @@ import zipfile
 from pathlib import Path
 
 # Dataset URL
-DATASET_URL = "https://drive.google.com/uc?export=download&id=1GIqoPXxanz7Rpa_qktc8o6IN2cQBi2Ga"
-DATASET_ZIP = "COTA_lap_end_time_R1.zip"
+DATASET_URL = "https://mega.nz/folder/2UlzSTQB#Tq9r2Nk4_ZD7mg0xCS-4nQ"
+DATASET_ZIP = "COTA_lap_end_time_R1"
 EXTRACT_DIR = "race_data"
 
 def download_dataset():
@@ -127,4 +127,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
