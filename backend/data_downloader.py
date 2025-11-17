@@ -7,9 +7,12 @@ import os
 import requests
 import zipfile
 from pathlib import Path
+from mega import Mega
+mega = Mega()
+m = mega.login()  # can login anonymously
 
 # Dataset URL
-DATASET_URL = "https://mega.nz/file/HIsSBB4Y#3KvCSzbpkFR9tQrxjB1Tjiv4YNLQSYUwJVhV2WA2JAQ"
+DATASET_URL = m.download_url("https://mega.nz/file/HIsSBB4Y#3KvCSzbpkFR9tQrxjB1Tjiv4YNLQSYUwJVhV2WA2JAQ")
 DATASET_ZIP = "COTA_lap_end_time_R1.zip"
 EXTRACT_DIR = "race_data"
 
@@ -127,6 +130,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
