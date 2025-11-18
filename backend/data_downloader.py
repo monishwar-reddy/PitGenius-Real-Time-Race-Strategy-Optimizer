@@ -3,7 +3,7 @@ import requests
 import zipfile
 from pathlib import Path
 
-FILE_URL = "https://pixeldrain.com/u/HXtFKpF3"
+FILE_URL = "https://pixeldrain.com/u/9EqAZsMc"
 ZIP_NAME = "COTA_lap_end_time_R1.zip"
 EXTRACT_DIR = "race_data"
 
@@ -102,3 +102,4 @@ def download_race_data():
         return False
 
     return True
+
