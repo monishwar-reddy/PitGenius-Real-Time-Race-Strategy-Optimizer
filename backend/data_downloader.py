@@ -5,7 +5,7 @@ from pathlib import Path
 
 FILE_URL = "https://pixeldrain.com/u/9EqAZsMc"
 ZIP_NAME = "COTA_lap_end_time_R1"
-EXTRACT_DIR = "race_data"
+EXTRACT_DIR = "COTA"
 
 
 def download_dataset():
@@ -102,5 +102,6 @@ def download_race_data():
         return False
 
     return True
+
 
 
