@@ -5,6 +5,7 @@ from typing import Dict, List, Tuple
 
 class RaceDataProcessor:
     def __init__(self, race_folder: str):
+        # race_folder MUST be:  COTA_extracted/COTA/Race1
         self.race_folder = Path(race_folder)
         self.telemetry_df = None
         self.lap_times_df = None
@@ -24,49 +25,77 @@ class RaceDataProcessor:
     def load_all_data(self):
         print("🔍 Scanning dataset folder:", self.race_folder)
 
-        # Telemetry
+        # ------------------------------
+        # TELEMETRY 
+        # ------------------------------
         telemetry_file = self._find_file([
-            "*telemetry*.csv", "*Telemetry*.csv", "*TELEMETRY*.csv"
+            "R1_cota_telemetry_data.csv",
+            "*telemetry*.csv"
         ])
+
         if telemetry_file:
             self.telemetry_df = pd.read_csv(telemetry_file)
             print(f"✅ Telemetry loaded: {len(self.telemetry_df)} rows")
 
-        # Lap times
+        # ------------------------------
+        # LAP TIMES
+        # ------------------------------
         lap_time_file = self._find_file([
-            "*lap*.csv", "*Lap*.csv", "*LAP*.csv"
+            "COTA_lap_time_R1.csv",
+            "*lap_time*.csv",
+            "*lap*.csv"
         ])
+
         if lap_time_file:
             self.lap_times_df = pd.read_csv(lap_time_file)
             print(f"✅ Lap times loaded: {len(self.lap_times_df)} rows")
 
-        # Weather
+        # ------------------------------
+        # WEATHER
+        # ------------------------------
         weather_file = self._find_file([
-            "*Weather*.csv", "*WEATHER*.csv", "*weather*.csv"
+            "26_Weather_Race 1_Anonymized.CSV",
+            "*Weather*.CSV",
+            "*weather*.csv"
         ])
+
         if weather_file:
-            self.weather_df = pd.read_csv(weather_file, sep=';')
+            self.weather_df = pd.read_csv(weather_file)
             print(f"✅ Weather loaded: {len(self.weather_df)} rows")
 
-        # Sector analysis
+        # ------------------------------
+        # SECTOR / ANALYSIS
+        # ------------------------------
         sectors_file = self._find_file([
-            "*Analysis*.csv", "*Sector*.csv", "*SECTOR*.csv"
+            "23_AnalysisEnduranceWithSections_Race 1_Anonymized.CSV",
+            "*AnalysisEndurance*.CSV",
+            "*Analysis*.csv"
         ])
+
         if sectors_file:
-            self.sectors_df = pd.read_csv(sectors_file, sep=';')
+            self.sectors_df = pd.read_csv(sectors_file)
             print(f"✅ Sector analysis loaded: {len(self.sectors_df)} rows")
 
-        # Best laps / results
+        # ------------------------------
+        # RESULTS / BEST 10 LAPS
+        # ------------------------------
         results_file = self._find_file([
-            "*Best*.csv", "*Result*.csv", "*RESULT*.csv"
+            "99_Best 10 Laps By Driver_Race 1_Anonymized.CSV",
+            "*Best 10 Laps*.CSV",
+            "*Best*.csv"
         ])
-        if results_file:
-            self.results_df = pd.read_csv(results_file, sep=';')
-            print(f"✅ Driver results loaded: {len(self.results_df)} rows")
 
-        print("📦 Dataset loaded (missing files were skipped safely).")
+        if results_file:
+            self.results_df = pd.read_csv(results_file)
+            print(f"✅ Best laps loaded: {len(self.results_df)} rows")
+
+        print("📦 All dataset files loaded successfully (or skipped if missing).")
         return self
 
+    # --------------------------------------------------------------------------------------
+    # Below = SAME FUNCTIONS YOU ALREADY HAVE (unchanged)
+    # --------------------------------------------------------------------------------------
+    
     def get_driver_lap_times(self, vehicle_id: str) -> pd.DataFrame:
         if self.lap_times_df is None:
             return pd.DataFrame()
