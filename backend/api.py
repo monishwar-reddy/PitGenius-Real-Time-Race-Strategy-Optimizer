@@ -5,9 +5,10 @@ from typing import List, Optional, Dict
 import sys
 from pathlib import Path
 
-from data_processor import RaceDataProcessor
-from strategy_engine import StrategyEngine
-from data_downloader import download_race_data
+from backend.data_processor import RaceDataProcessor
+from backend.strategy_engine import StrategyEngine
+from backend.data_downloader import download_race_data
+
 
 app = FastAPI(title="PitGenius API", version="1.0.0")
 
@@ -230,3 +231,4 @@ async def get_race_summary():
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
+
