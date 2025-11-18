@@ -42,39 +42,46 @@ class PitDecisionRequest(BaseModel):
 @app.on_event("startup")
 async def startup_event():
     """
-    Load race data on FastAPI boot.
-    This version only loads local files.
+    Auto-detect the Race1 dataset folder anywhere in the project.
+    Works locally and inside Docker/Render.
     """
     global processor
 
-    print("\n⚠️ Skipping dataset download — using LOCAL FILES only.\n")
+    print("\n⚠️ Using LOCAL DATASETS only.\n")
 
-    # -----------------------------------------
-    # FIXED PATH — EXACT STRUCTURE FROM YOUR ZIP
-    # -----------------------------------------
-    race_folder = Path("race_data/COTA/Race1")
+    # List all possible dataset folder names
+    possible_names = ["Race1", "Race 1"]
 
-    if not race_folder.exists():
+    # Start search from project root (/app/)
+    project_root = Path(__file__).resolve().parents[1]
+
+    print(f"🔍 Searching for Race1 folder under: {project_root}")
+
+    race_folder = None
+
+    # Walk entire project directory
+    for path in project_root.rglob("*"):
+        if path.is_dir() and path.name in possible_names:
+            race_folder = path
+            break
+
+    if race_folder is None:
         raise Exception(
-            f"❌ Race1 folder NOT FOUND at: {race_folder.resolve()}\n"
-            "Place your folder exactly like this:\n\n"
-            "race_data/\n"
-            "   COTA/\n"
-            "       Race1/\n"
-            "           R1_cota_telemetry_data.csv\n"
-            "           COTA_lap_time_R1.csv\n"
-            "           26_Weather_Race 1_Anonymized.CSV\n"
-            "           23_AnalysisEnduranceWithSections_Race 1_Anonymized.CSV\n"
-            "           99_Best 10 Laps By Driver_Race 1_Anonymized.CSV\n"
+            "❌ Race1 folder NOT FOUND anywhere in the project.\n"
+            "Put your files inside ANY of these paths:\n"
+            "- race_data/COTA/Race1\n"
+            "- backend/race_data/COTA/Race1\n"
+            "- COTA/Race1\n"
+            "- ANYWHERE/Race1 (auto-detected)\n"
         )
 
-    print(f"✅ Using dataset folder: {race_folder.resolve()}")
+    print(f"✅ FOUND DATASET FOLDER: {race_folder}")
 
-    # Initialize data processor
     processor = RaceDataProcessor(str(race_folder))
     processor.load_all_data()
 
     print("✅ Race data loaded successfully!\n")
+
 
 
 
@@ -249,3 +256,4 @@ async def get_race_summary():
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
+
