@@ -1,18 +1,17 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import List, Optional, Dict
-import sys
 from pathlib import Path
+from typing import List, Optional, Dict
+import math
 
 from backend.data_processor import RaceDataProcessor
 from backend.strategy_engine import StrategyEngine
-from backend.data_downloader import download_race_data
 
 
 app = FastAPI(title="PitGenius API", version="1.0.0")
 
-# CORS middleware
+# CORS setup
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -21,7 +20,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Global data processor
+# Globals
 processor = None
 strategy_engine = StrategyEngine()
 
@@ -39,50 +38,50 @@ class PitDecisionRequest(BaseModel):
     weather_changing: bool = False
 
 
+
 @app.on_event("startup")
 async def startup_event():
-    """Load race data on startup"""
+    """
+    Load race data on FastAPI boot.
+    This version only loads local files.
+    """
     global processor
 
-    print("⚠️ Skipping dataset download — using local files only.")
+    print("\n⚠️ Skipping dataset download — using LOCAL FILES only.\n")
 
-    # -----------------------------
-    # FIXED FOLDER PATH HANDLING
-    # -----------------------------
-    possible_paths = [
-        Path("race_data/COTA/Race1"),
-        Path("race_data/COTA/Race 1"),
-        Path("race_data/Race1"),
-        Path("COTA/Race1"),
-        Path("COTA/Race 1"),
-        Path("../COTA/Race1"),
-        Path("../COTA/Race 1"),
-    ]
+    # -----------------------------------------
+    # FIXED PATH — EXACT STRUCTURE FROM YOUR ZIP
+    # -----------------------------------------
+    race_folder = Path("race_data/COTA/Race1")
 
-    race_folder = None
-    for path in possible_paths:
-        if path.exists():
-            race_folder = path
-            print(f"✅ Using dataset folder: {path}")
-            break
+    if not race_folder.exists():
+        raise Exception(
+            f"❌ Race1 folder NOT FOUND at: {race_folder.resolve()}\n"
+            "Place your folder exactly like this:\n\n"
+            "race_data/\n"
+            "   COTA/\n"
+            "       Race1/\n"
+            "           R1_cota_telemetry_data.csv\n"
+            "           COTA_lap_time_R1.csv\n"
+            "           26_Weather_Race 1_Anonymized.CSV\n"
+            "           23_AnalysisEnduranceWithSections_Race 1_Anonymized.CSV\n"
+            "           99_Best 10 Laps By Driver_Race 1_Anonymized.CSV\n"
+        )
 
-    if race_folder is None:
-        print("❌ Could not find Race1 folder. Backend cannot load dataset.")
-        raise Exception("Race1 folder not found. Check your folder structure.")
+    print(f"✅ Using dataset folder: {race_folder.resolve()}")
 
-    # Initialize processor
+    # Initialize data processor
     processor = RaceDataProcessor(str(race_folder))
     processor.load_all_data()
-    print("✅ Race data loaded successfully")
+
+    print("✅ Race data loaded successfully!\n")
+
 
 
 @app.get("/")
 async def root():
-    return {
-        "message": "PitGenius API - Real-Time Race Strategy Optimizer",
-        "version": "1.0.0",
-        "status": "operational"
-    }
+    return {"message": "PitGenius API Running", "version": "1.0.0"}
+
 
 
 @app.get("/drivers")
@@ -94,12 +93,12 @@ async def get_drivers():
         raise HTTPException(status_code=500, detail=str(e))
 
 
+
 @app.get("/driver/{vehicle_number}/performance")
 async def get_driver_performance(vehicle_number: int):
     try:
-        import math
-
-        vehicle_ids = processor.lap_times_df['vehicle_id'].unique()
+        # Try matching partial vehicle IDs (your CSV uses strings)
+        vehicle_ids = processor.lap_times_df["vehicle_id"].unique()
         matching_vehicle = None
 
         for vid in vehicle_ids:
@@ -114,47 +113,51 @@ async def get_driver_performance(vehicle_number: int):
         tire_deg = processor.get_tire_degradation(matching_vehicle)
         sectors = processor.get_sector_performance(vehicle_number)
 
-        lap_times_clean = lap_times.replace({float('nan'): None, float('inf'): None, float('-inf'): None})
-        sectors_clean = sectors.replace({float('nan'): None, float('inf'): None, float('-inf'): None})
+        # Cleanup
+        lap_times_clean = lap_times.replace({math.nan: None, math.inf: None, -math.inf: None})
+        sectors_clean = sectors.replace({math.nan: None, math.inf: None, -math.inf: None})
+
+        # Clean tire degradation
+        deg_rate = tire_deg["degradation_rate"]
+        if math.isnan(deg_rate) or math.isinf(deg_rate):
+            deg_rate = 0.0
 
         tire_deg_clean = {
-            'degradation_rate': tire_deg['degradation_rate'] if not math.isnan(tire_deg['degradation_rate']) and not math.isinf(tire_deg['degradation_rate']) else 0.0,
-            'laps': [x if not math.isnan(x) and not math.isinf(x) else 0.0 for x in tire_deg.get('laps', [])],
-            'trend': [x if not math.isnan(x) and not math.isinf(x) else 0.0 for x in tire_deg.get('trend', [])]
+            "degradation_rate": deg_rate,
+            "laps": [x if x == x and not math.isinf(x) else 0.0 for x in tire_deg.get("laps", [])],
+            "trend": [x if x == x and not math.isinf(x) else 0.0 for x in tire_deg.get("trend", [])]
         }
 
         return {
             "vehicle_id": matching_vehicle,
             "vehicle_number": vehicle_number,
-            "lap_times": lap_times_clean.to_dict('records'),
+            "lap_times": lap_times_clean.to_dict("records"),
             "tire_degradation": tire_deg_clean,
-            "sector_performance": sectors_clean.to_dict('records')[:10]
+            "sector_performance": sectors_clean.to_dict("records")[:10]
         }
 
-    except HTTPException:
-        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
 
 
 @app.post("/strategy/calculate")
 async def calculate_strategy(request: StrategyRequest):
     try:
         lap_times_df = processor.get_driver_lap_times(request.vehicle_id)
-        lap_times = lap_times_df['lap_time_seconds'].tolist()
+        lap_times = lap_times_df["lap_time_seconds"].tolist()
 
         tire_deg = processor.get_tire_degradation(request.vehicle_id)
         weather = processor.get_weather_at_time("")
 
         all_drivers = processor.get_all_drivers()
-        competitors = [d for d in all_drivers if d.get('best_lap')]
 
         windows = strategy_engine.calculate_optimal_pit_window(
             current_lap=request.current_lap,
             total_laps=request.total_laps,
             lap_times=lap_times,
-            degradation_rate=tire_deg['degradation_rate'],
-            competitors=competitors,
+            degradation_rate=tire_deg["degradation_rate"],
+            competitors=all_drivers,
             weather=weather
         )
 
@@ -171,27 +174,26 @@ async def calculate_strategy(request: StrategyRequest):
                     "reason": w.reason
                 }
                 for w in windows
-            ],
-            "tire_degradation_rate": tire_deg['degradation_rate'],
-            "weather": weather
+            ]
         }
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
+
 @app.post("/strategy/pit-now")
 async def should_pit_now(request: PitDecisionRequest):
     try:
         lap_times_df = processor.get_driver_lap_times(request.vehicle_id)
-        lap_times = lap_times_df['lap_time_seconds'].tolist()
+        lap_times = lap_times_df["lap_time_seconds"].tolist()
 
         tire_deg = processor.get_tire_degradation(request.vehicle_id)
 
         should_pit, reason = strategy_engine.should_pit_now(
             current_lap=request.current_lap,
             lap_times=lap_times,
-            degradation_rate=tire_deg['degradation_rate'],
+            degradation_rate=tire_deg["degradation_rate"],
             gap_to_car_behind=request.gap_to_behind,
             weather_changing=request.weather_changing
         )
@@ -199,21 +201,21 @@ async def should_pit_now(request: PitDecisionRequest):
         return {
             "should_pit": should_pit,
             "reason": reason,
-            "degradation_rate": tire_deg['degradation_rate'],
-            "current_lap": request.current_lap
+            "degradation_rate": tire_deg["degradation_rate"]
         }
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
+
 @app.get("/weather/current")
 async def get_current_weather():
     try:
-        weather = processor.get_weather_at_time("")
-        return weather
+        return processor.get_weather_at_time("")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
 
 
 @app.get("/race/summary")
@@ -222,27 +224,26 @@ async def get_race_summary():
         drivers = processor.get_all_drivers()
         weather = processor.get_weather_at_time("")
 
-        all_deg_rates = []
-        for driver in drivers:
-            vehicle_ids = processor.lap_times_df['vehicle_id'].unique()
-            for vid in vehicle_ids:
-                if str(driver['number']) in vid:
+        rates = []
+        for d in drivers:
+            for vid in processor.lap_times_df["vehicle_id"].unique():
+                if str(d["number"]) in vid:
                     deg = processor.get_tire_degradation(vid)
-                    if deg['degradation_rate'] > 0:
-                        all_deg_rates.append(deg['degradation_rate'])
+                    if deg["degradation_rate"] > 0:
+                        rates.append(deg["degradation_rate"])
                     break
 
-        avg_degradation = sum(all_deg_rates) / len(all_deg_rates) if all_deg_rates else 0
+        avg_deg = sum(rates) / len(rates) if rates else 0
 
         return {
             "total_drivers": len(drivers),
             "weather": weather,
-            "average_tire_degradation": avg_degradation,
-            "track_status": "Green" if weather.get('track_temp', 0) < 50 else "Hot"
+            "average_tire_degradation": avg_deg
         }
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
 
 
 if __name__ == "__main__":
