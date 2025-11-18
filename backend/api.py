@@ -25,10 +25,12 @@ app.add_middleware(
 processor = None
 strategy_engine = StrategyEngine()
 
+
 class StrategyRequest(BaseModel):
     vehicle_id: str
     current_lap: int
     total_laps: int = 17
+
 
 class PitDecisionRequest(BaseModel):
     vehicle_id: str
@@ -36,24 +38,43 @@ class PitDecisionRequest(BaseModel):
     gap_to_behind: float
     weather_changing: bool = False
 
+
 @app.on_event("startup")
 async def startup_event():
     """Load race data on startup"""
     global processor
-    
-    # STEP 1: Download data from Google Drive
+
     print("⚠️ Skipping dataset download — using local files only.")
-    
-    # STEP 2: Load data from extracted folder
-    race_folder = Path("race_data/Race 1")
-    if not race_folder.exists():
-        race_folder = Path("../COTA/Race 1")
-        if not race_folder.exists():
-            race_folder = Path("COTA/Race 1")
-    
+
+    # -----------------------------
+    # FIXED FOLDER PATH HANDLING
+    # -----------------------------
+    possible_paths = [
+        Path("race_data/COTA/Race1"),
+        Path("race_data/COTA/Race 1"),
+        Path("race_data/Race1"),
+        Path("COTA/Race1"),
+        Path("COTA/Race 1"),
+        Path("../COTA/Race1"),
+        Path("../COTA/Race 1"),
+    ]
+
+    race_folder = None
+    for path in possible_paths:
+        if path.exists():
+            race_folder = path
+            print(f"✅ Using dataset folder: {path}")
+            break
+
+    if race_folder is None:
+        print("❌ Could not find Race1 folder. Backend cannot load dataset.")
+        raise Exception("Race1 folder not found. Check your folder structure.")
+
+    # Initialize processor
     processor = RaceDataProcessor(str(race_folder))
     processor.load_all_data()
     print("✅ Race data loaded successfully")
+
 
 @app.get("/")
 async def root():
@@ -63,78 +84,71 @@ async def root():
         "status": "operational"
     }
 
+
 @app.get("/drivers")
 async def get_drivers():
-    """Get all drivers in the race"""
     try:
         drivers = processor.get_all_drivers()
         return {"drivers": drivers, "count": len(drivers)}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
 @app.get("/driver/{vehicle_number}/performance")
 async def get_driver_performance(vehicle_number: int):
-    """Get detailed driver performance data"""
     try:
         import math
-        
-        # Get lap times
+
         vehicle_ids = processor.lap_times_df['vehicle_id'].unique()
         matching_vehicle = None
-        
+
         for vid in vehicle_ids:
             if str(vehicle_number) in vid:
                 matching_vehicle = vid
                 break
-        
+
         if not matching_vehicle:
             raise HTTPException(status_code=404, detail="Driver not found")
-        
+
         lap_times = processor.get_driver_lap_times(matching_vehicle)
         tire_deg = processor.get_tire_degradation(matching_vehicle)
         sectors = processor.get_sector_performance(vehicle_number)
-        
-        # Clean NaN values from lap_times
+
         lap_times_clean = lap_times.replace({float('nan'): None, float('inf'): None, float('-inf'): None})
-        
-        # Clean NaN values from sectors
         sectors_clean = sectors.replace({float('nan'): None, float('inf'): None, float('-inf'): None})
-        
-        # Clean tire degradation
+
         tire_deg_clean = {
             'degradation_rate': tire_deg['degradation_rate'] if not math.isnan(tire_deg['degradation_rate']) and not math.isinf(tire_deg['degradation_rate']) else 0.0,
             'laps': [x if not math.isnan(x) and not math.isinf(x) else 0.0 for x in tire_deg.get('laps', [])],
             'trend': [x if not math.isnan(x) and not math.isinf(x) else 0.0 for x in tire_deg.get('trend', [])]
         }
-        
+
         return {
             "vehicle_id": matching_vehicle,
             "vehicle_number": vehicle_number,
             "lap_times": lap_times_clean.to_dict('records'),
             "tire_degradation": tire_deg_clean,
-            "sector_performance": sectors_clean.to_dict('records')[:10]  # Last 10 laps
+            "sector_performance": sectors_clean.to_dict('records')[:10]
         }
+
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
 @app.post("/strategy/calculate")
 async def calculate_strategy(request: StrategyRequest):
-    """Calculate optimal pit strategy"""
     try:
-        # Get driver data
         lap_times_df = processor.get_driver_lap_times(request.vehicle_id)
         lap_times = lap_times_df['lap_time_seconds'].tolist()
-        
+
         tire_deg = processor.get_tire_degradation(request.vehicle_id)
         weather = processor.get_weather_at_time("")
-        
-        # Get competitors
+
         all_drivers = processor.get_all_drivers()
         competitors = [d for d in all_drivers if d.get('best_lap')]
-        
-        # Calculate optimal windows
+
         windows = strategy_engine.calculate_optimal_pit_window(
             current_lap=request.current_lap,
             total_laps=request.total_laps,
@@ -143,7 +157,7 @@ async def calculate_strategy(request: StrategyRequest):
             competitors=competitors,
             weather=weather
         )
-        
+
         return {
             "vehicle_id": request.vehicle_id,
             "current_lap": request.current_lap,
@@ -161,18 +175,19 @@ async def calculate_strategy(request: StrategyRequest):
             "tire_degradation_rate": tire_deg['degradation_rate'],
             "weather": weather
         }
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
 @app.post("/strategy/pit-now")
 async def should_pit_now(request: PitDecisionRequest):
-    """Determine if car should pit immediately"""
     try:
         lap_times_df = processor.get_driver_lap_times(request.vehicle_id)
         lap_times = lap_times_df['lap_time_seconds'].tolist()
-        
+
         tire_deg = processor.get_tire_degradation(request.vehicle_id)
-        
+
         should_pit, reason = strategy_engine.should_pit_now(
             current_lap=request.current_lap,
             lap_times=lap_times,
@@ -180,33 +195,33 @@ async def should_pit_now(request: PitDecisionRequest):
             gap_to_car_behind=request.gap_to_behind,
             weather_changing=request.weather_changing
         )
-        
+
         return {
             "should_pit": should_pit,
             "reason": reason,
             "degradation_rate": tire_deg['degradation_rate'],
             "current_lap": request.current_lap
         }
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
 @app.get("/weather/current")
 async def get_current_weather():
-    """Get current weather conditions"""
     try:
         weather = processor.get_weather_at_time("")
         return weather
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
 @app.get("/race/summary")
 async def get_race_summary():
-    """Get overall race summary"""
     try:
         drivers = processor.get_all_drivers()
         weather = processor.get_weather_at_time("")
-        
-        # Calculate average degradation across all drivers
+
         all_deg_rates = []
         for driver in drivers:
             vehicle_ids = processor.lap_times_df['vehicle_id'].unique()
@@ -216,20 +231,20 @@ async def get_race_summary():
                     if deg['degradation_rate'] > 0:
                         all_deg_rates.append(deg['degradation_rate'])
                     break
-        
+
         avg_degradation = sum(all_deg_rates) / len(all_deg_rates) if all_deg_rates else 0
-        
+
         return {
             "total_drivers": len(drivers),
             "weather": weather,
             "average_tire_degradation": avg_degradation,
             "track_status": "Green" if weather.get('track_temp', 0) < 50 else "Hot"
         }
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
 
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
-
-
