@@ -13,35 +13,46 @@ class RaceDataProcessor:
         self.results_df = None
         
     def load_all_data(self):
-        """Load all race data files"""
-        print("Loading race data...")
-        
-        # Telemetry data
-        telemetry_file = list(self.race_folder.glob("*telemetry_data.csv"))[0]
-        self.telemetry_df = pd.read_csv(telemetry_file)
-        print(f"Loaded {len(self.telemetry_df)} telemetry records")
-        
-        # Lap times
-        lap_time_file = list(self.race_folder.glob("*lap_time*.csv"))[0]
-        self.lap_times_df = pd.read_csv(lap_time_file)
-        print(f"Loaded {len(self.lap_times_df)} lap time records")
-        
-        # Weather
-        weather_file = list(self.race_folder.glob("*Weather*.CSV"))[0]
-        self.weather_df = pd.read_csv(weather_file, sep=';')
-        print(f"Loaded {len(self.weather_df)} weather records")
-        
-        # Sector analysis
-        sectors_file = list(self.race_folder.glob("*AnalysisEndurance*.CSV"))[0]
-        self.sectors_df = pd.read_csv(sectors_file, sep=';')
-        print(f"Loaded {len(self.sectors_df)} sector records")
-        
-        # Best laps
-        best_laps_file = list(self.race_folder.glob("*Best 10 Laps*.CSV"))[0]
-        self.results_df = pd.read_csv(best_laps_file, sep=';')
-        print(f"Loaded {len(self.results_df)} driver records")
-        
-        return self
+    """Load all race data files"""
+    print("Loading race data...")
+
+    # Allow searching in subfolders automatically
+    folder = self.race_folder
+    all_files = list(folder.rglob("*"))  # search everywhere inside race folder
+
+    def find(patterns: List[str]):
+        for p in patterns:
+            matches = [f for f in all_files if p.lower() in f.name.lower()]
+            if matches:
+                return matches[0]
+        raise FileNotFoundError(f"Could not find any file matching {patterns}")
+
+    # Telemetry
+    telemetry_file = find(["telemetry_data", "telemetry"])
+    self.telemetry_df = pd.read_csv(telemetry_file)
+    print(f"Loaded {len(self.telemetry_df)} telemetry records")
+
+    # Lap times
+    lap_time_file = find(["lap_time", "lap"])
+    self.lap_times_df = pd.read_csv(lap_time_file)
+    print(f"Loaded {len(self.lap_times_df)} lap time records")
+
+    # Weather
+    weather_file = find(["weather"])
+    self.weather_df = pd.read_csv(weather_file, sep=";")
+    print(f"Loaded {len(self.weather_df)} weather records")
+
+    # Sector analysis
+    sectors_file = find(["analysisendurance"])
+    self.sectors_df = pd.read_csv(sectors_file, sep=";")
+    print(f"Loaded {len(self.sectors_df)} sector records")
+
+    # Best laps
+    best_laps_file = find(["best 10 laps", "best"])
+    self.results_df = pd.read_csv(best_laps_file, sep=";")
+    print(f"Loaded {len(self.results_df)} driver records")
+
+    return self
     
     def get_driver_lap_times(self, vehicle_id: str) -> pd.DataFrame:
         """Get lap times for specific driver"""
@@ -166,3 +177,4 @@ class RaceDataProcessor:
             'brake_applications': int(len(brake_data)),
             'avg_accel': float(accel_data['telemetry_value'].mean()) if len(accel_data) > 0 else 0
         }
+
