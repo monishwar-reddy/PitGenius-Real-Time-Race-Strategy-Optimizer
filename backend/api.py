@@ -250,10 +250,26 @@ async def get_race_summary():
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+@app.get("/debug/files")
+async def debug_files():
+    import os
+
+    tree = []
+    for root, dirs, files in os.walk("/app", topdown=True):
+        path = root.replace("/app", "")
+        tree.append({
+            "path": path if path else "/",
+            "dirs": dirs,
+            "files": files
+        })
+
+    return tree
+
 
 
 
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
+
 
