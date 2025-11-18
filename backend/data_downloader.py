@@ -4,7 +4,7 @@ import zipfile
 from pathlib import Path
 
 # Direct download link to your Mega file (converted to a usable URL)
-FILE_URL = "https://mega.nz/#!HIsSBB4Y!3KvCSzbpkFR9tQrxjB1Tjiv4YNLQSYUwJVhV2WA2JAQ"
+FILE_URL = "https://pixeldrain.com/api/file/HXtFKpF3"
 
 ZIP_NAME = "COTA_lap_end_time_R1.zip"
 EXTRACT_DIR = "race_data"
@@ -53,3 +53,4 @@ def download_race_data():
     extract_dataset()
     verify_dataset()
     return True
+
