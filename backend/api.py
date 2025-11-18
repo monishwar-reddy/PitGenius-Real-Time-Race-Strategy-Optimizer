@@ -42,7 +42,7 @@ async def startup_event():
     global processor
     
     # STEP 1: Download data from Google Drive
-    download_race_data()
+    print("⚠️ Skipping dataset download — using local files only.")
     
     # STEP 2: Load data from extracted folder
     race_folder = Path("race_data/Race 1")
@@ -231,4 +231,5 @@ async def get_race_summary():
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
+
 
