@@ -4,6 +4,8 @@
 
 PitGenius is an AI-powered real-time race strategy tool that helps race engineers and drivers make optimal pit stop decisions during GR Cup races. Using 17+ million telemetry data points, tire degradation analysis, and predictive algorithms, PitGenius calculates the perfect pit window to maximize track position.
 
+![Workflow]<img width="1897" height="1024" alt="Screenshot 2025-11-19 090454" src="https://github.com/user-attachments/assets/a6ecb9fa-1c18-43ab-9463-635c2acc5b5b" />
+
 ## 🎯 Category: Real-Time Analytics
 
 ## 🚀 Quick Start (2 Minutes)
